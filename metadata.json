@@ -1,0 +1,9 @@
+{
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ],
+  "name": "Mindhealth",
+  "description": "Professional AI-Powered Mental Health Platform for the Nepali Community"
+}

@@ -1,0 +1,25 @@
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Environment Variables (CRITICAL: Do not leak your API Key)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+dist/
+build/
+
+# Debugging logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System Files
+.DS_Store
+Thumbs.db

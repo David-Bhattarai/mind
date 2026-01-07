@@ -47,7 +47,7 @@ export const Server = {
       }
 
       // Chats
-      else if (path === '/api/v1/chats' && method === 'POST') response = Controllers.ChatController.saveMessage(body);
+      else if (path === '/api/v1/chats' && method === 'POST') response = await Controllers.ChatController.sendMessage(body);
       else if (path.startsWith('/api/v1/chats/history')) {
         const userId = searchParams.get('userId');
         response = Controllers.ChatController.getHistory(userId || 'anon');

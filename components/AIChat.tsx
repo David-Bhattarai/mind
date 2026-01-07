@@ -1,7 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Brain, Cpu, Loader2, Sparkles, ShieldCheck, Heart, Info } from 'lucide-react';
-import { getTherapyResponse, detectCrisis } from '../geminiService';
 import { Message } from '../types';
 import { API } from '../api';
 
@@ -17,6 +16,7 @@ const AIChat: React.FC<AIChatProps> = ({ onCrisisDetected }) => {
 
   useEffect(() => {
     const loadChat = async () => {
+      setIsLoading(true);
       const history = await API.chat.getHistory();
       if (history.length > 0) {
         setMessages(history);
@@ -29,6 +29,7 @@ const AIChat: React.FC<AIChatProps> = ({ onCrisisDetected }) => {
         };
         setMessages([welcome]);
       }
+      setIsLoading(false);
     };
     loadChat();
   }, []);
@@ -43,27 +44,22 @@ const AIChat: React.FC<AIChatProps> = ({ onCrisisDetected }) => {
 
     const userMsg: Message = { id: Date.now().toString(), role: 'user', content: input, timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg]);
-    await API.chat.saveMessage(userMsg);
     
     setInput('');
     setIsLoading(true);
 
     try {
-      const isCrisis = await detectCrisis(input);
-      if (isCrisis) {
-        onCrisisDetected();
-        return;
-      }
-
-      const history = messages.slice(-10).map(m => ({ role: m.role, parts: [{ text: m.content }] }));
-      const aiResponse = await getTherapyResponse(history, input);
-      
-      const botMsg: Message = { id: (Date.now()+1).toString(), role: 'model', content: aiResponse, timestamp: Date.now() };
-      setMessages(prev => [...prev, botMsg]);
-      await API.chat.saveMessage(botMsg);
-      
+        const response = await API.chat.sendMessage(input);
+        if (response && response.reply) {
+            const botMsg: Message = { id: (Date.now()+1).toString(), role: 'model', content: response.reply, timestamp: Date.now() };
+            setMessages(prev => [...prev, botMsg]);
+        } else if(response.error === "Crisis detected"){
+            onCrisisDetected();
+        }
     } catch (err) {
       console.error(err);
+      const errorMsg: Message = { id: (Date.now()+1).toString(), role: 'model', content: "I'm having trouble connecting right now. Please try again later.", timestamp: Date.now() };
+      setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
     }
@@ -86,7 +82,7 @@ const AIChat: React.FC<AIChatProps> = ({ onCrisisDetected }) => {
         </div>
         <div className="px-5 py-2 bg-slate-50 rounded-full border border-slate-100 flex items-center gap-2">
            <ShieldCheck size={12} className="text-indigo-600" />
-           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Local Encrypted History</span>
+           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Server-Side History</span>
         </div>
       </div>
 
@@ -94,7 +90,7 @@ const AIChat: React.FC<AIChatProps> = ({ onCrisisDetected }) => {
         {messages.map((m) => (
           <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] p-8 rounded-[2.5rem] text-lg shadow-xl ${m.role === 'user' ? 'bg-indigo-600 text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-100 rounded-bl-none'}`}>
-              <div className="relative z-10 whitespace-pre-wrap font-medium leading-relaxed">{m.content}</div>
+              <div className="relative z-10 whitespace-pre-wrap font-medium leading-.relaxed">{m.content}</div>
               <div className="mt-4 text-[9px] opacity-30 font-mono">{new Date(m.timestamp).toLocaleTimeString()}</div>
             </div>
           </div>

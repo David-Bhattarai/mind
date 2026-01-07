@@ -1,5 +1,17 @@
 
-import { db } from './NeuralDB';
+// NeuralDB.ts was deleted. This is a temporary mock to avoid crashes.
+// TODO: Migrate all remaining db calls to the backend.
+const db = {
+    insert: () => {},
+    find: () => [],
+    findOne: () => null,
+    update: () => {},
+    delete: () => {},
+    getStats: () => ({}),
+    getSystemWideStats: () => ({}),
+};
+
+const API_URL = 'http://localhost:5000/api';
 
 const getSession = () => {
   const data = localStorage.getItem('mindcore_session');
@@ -18,17 +30,28 @@ const updateLocalSession = (updates: any) => {
 export const API = {
   auth: {
     login: async (username: string, pin: string) => {
-      const user = db.findOne('users', { username, pin });
-      if (user) {
-        db.update('users', { _id: user._id }, { lastActive: Date.now() });
-        return user;
+      const response = await fetch(`${API_URL}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, pin }),
+      });
+      const user = await response.json();
+      if (user && !user.error) {
+        localStorage.setItem('mindcore_session', JSON.stringify(user));
       }
-      return null;
+      return user;
     },
     register: async (username: string, pin: string) => {
-      const exists = db.findOne('users', { username });
-      if (exists) return null;
-      return db.insert('users', { username, pin, role: 'user', xp: 0, plan: 'FREE', joinedAt: Date.now() });
+        const response = await fetch(`${API_URL}/users`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, pin, role: 'user', xp: 0, plan: 'FREE', joinedAt: new Date().toISOString() }),
+        });
+        return await response.json();
     },
     getCurrentUser: () => getSession(),
     logout: () => {
@@ -39,8 +62,8 @@ export const API = {
 
   diagnostics: {
     checkBackend: async () => {
-      // In this Next.js-style app, the "Backend" is the local NeuralDB service
-      return { online: true, mode: 'VIRTUAL_NODE', cluster: 'Local' };
+        const response = await fetch('http://localhost:5000');
+        return { online: response.ok, mode: 'PYTHON_FLASK', cluster: 'Local' };
     }
   },
 
@@ -70,14 +93,38 @@ export const API = {
   },
 
   chat: {
-    saveMessage: async (message: any) => {
-      const user = getSession();
-      return db.insert('chats', { ...message, userId: user?._id });
+    sendMessage: async (messageText: string) => {
+        const user = getSession();
+        if (!user) return null;
+
+        const response = await fetch(`${API_URL}/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: messageText, userId: user._id }),
+        });
+        return await response.json();
     },
     getHistory: async () => {
-      const user = getSession();
-      return db.find('chats', { userId: user?._id });
-    }
+        const user = getSession();
+        if (!user) return [];
+
+        const response = await fetch(`${API_URL}/chat/history?userId=${user._id}`);
+        if (!response.ok) {
+            console.error("Failed to fetch chat history");
+            return [];
+        }
+        try {
+            const history = await response.json();
+            const formattedHistory = history.flatMap((entry: any) => [
+                { text: entry.prompt, sender: 'user', timestamp: new Date(entry.createdAt).getTime(), id: `${entry._id}_user` },
+                { text: entry.response, sender: 'ai', timestamp: new Date(entry.createdAt).getTime() + 1, id: `${entry._id}_ai` },
+            ]);
+            return formattedHistory;
+        } catch (error) {
+            console.error("Error parsing chat history:", error);
+            return [];
+        }
+    },
   },
 
   frontier: {
@@ -137,7 +184,7 @@ export const API = {
   admin: {
     getSystemData: async () => {
       return {
-        stats: db.getStats(),
+        stats: db.getSystemWideStats(),
         users: db.find('users')
       };
     },
@@ -184,7 +231,7 @@ export const API = {
         const user = getSession();
         const newXP = (user.xp || 0) + xp;
         db.update('users', { _id: user._id }, { xp: newXP });
-        db.insert('activities', { userId: user._id, type: 'QUEST', questId, xp });
+        db.insert('activities', { userId: user?._id, type: 'QUEST', questId, xp });
         updateLocalSession({ xp: newXP });
         return { status: 200, data: { newXP } };
       }
